@@ -159,7 +159,9 @@ function initLocalAi() {
     downloads.value = {};
     logConsole('system', `AIモデル ${selectedModel.value} をスレッドに読み込んでいます...`);
 
-    worker = new Worker('/gemma-worker.js', { type: 'module' });
+    const runtimeConfig = useRuntimeConfig();
+    const workerUrl = `${runtimeConfig.app.baseURL || '/'}gemma-worker.js`.replace(/\/{2,}/g, '/');
+    worker = new Worker(workerUrl, { type: 'module' });
 
     worker.onmessage = (event) => {
       const { type, data } = event.data;
