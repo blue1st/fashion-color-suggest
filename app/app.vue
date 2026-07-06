@@ -240,6 +240,9 @@ function onItemRegistered(data) {
           tops: data.suggestedOutfit.tops,
           bottoms: data.suggestedOutfit.bottoms,
           outer: data.suggestedOutfit.outer
+        }, {
+          category: data.category,
+          hex: data.hex
         });
       }
     }, 100);

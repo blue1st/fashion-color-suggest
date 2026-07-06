@@ -498,10 +498,6 @@ function generateRandomOutfit() {
   if (!props.season) return;
   const palette = PALETTES[props.season] || PALETTES.spring;
 
-  if (props.ownedItem && props.ownedItem.category === 'outer') {
-    includeOuter.value = true;
-  }
-
   if (props.ownedItem && props.ownedItem.category === 'tops') {
     currentOutfit.tops = { name: '手持ちのトップス', hex: props.ownedItem.hex, isOwned: true };
   } else {
@@ -551,7 +547,10 @@ watch(() => props.season, (newSeason) => {
   }
 }, { immediate: true });
 
-watch(() => props.ownedItem, () => {
+watch(() => props.ownedItem, (newVal) => {
+  if (newVal && newVal.category === 'outer') {
+    includeOuter.value = true;
+  }
   generateRandomOutfit();
 }, { deep: true });
 
@@ -560,27 +559,29 @@ watch(() => props.occasion, () => {
 });
 
 defineExpose({
-  updateOutfit(newColors) {
+  updateOutfit(newColors, ownedItemInfo = null) {
+    const activeOwnedItem = ownedItemInfo || props.ownedItem;
+
     if (newColors.tops) {
-      if (props.ownedItem && props.ownedItem.category === 'tops') {
-        currentOutfit.tops = { name: '手持ちのトップス', hex: props.ownedItem.hex, isOwned: true };
+      if (activeOwnedItem && activeOwnedItem.category === 'tops') {
+        currentOutfit.tops = { name: '手持ちのトップス', hex: activeOwnedItem.hex, isOwned: true };
       } else {
         currentOutfit.tops = newColors.tops;
       }
     }
     if (newColors.bottoms) {
-      if (props.ownedItem && props.ownedItem.category === 'bottoms') {
-        currentOutfit.bottoms = { name: '手持ちのボトムス', hex: props.ownedItem.hex, isOwned: true };
+      if (activeOwnedItem && activeOwnedItem.category === 'bottoms') {
+        currentOutfit.bottoms = { name: '手持ちのボトムス', hex: activeOwnedItem.hex, isOwned: true };
       } else {
         currentOutfit.bottoms = newColors.bottoms;
       }
     }
-    if (props.ownedItem && props.ownedItem.category === 'outer') {
+    if (activeOwnedItem && activeOwnedItem.category === 'outer') {
       includeOuter.value = true;
     }
     if (newColors.outer && includeOuter.value) {
-      if (props.ownedItem && props.ownedItem.category === 'outer') {
-        currentOutfit.outer = { name: '手持ちのアウター', hex: props.ownedItem.hex, isOwned: true };
+      if (activeOwnedItem && activeOwnedItem.category === 'outer') {
+        currentOutfit.outer = { name: '手持ちのアウター', hex: activeOwnedItem.hex, isOwned: true };
       } else {
         currentOutfit.outer = newColors.outer;
       }
