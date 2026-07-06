@@ -85,18 +85,53 @@
           <!-- Navigation buttons -->
           <div class="step-navigation" v-if="selectedSeason">
             <button @click="setActiveStep(2)" class="btn btn-primary next-step-btn">
-              提案とAI相談へ進む
+              手持ちアイテムの登録へ進む
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
             </button>
           </div>
         </div>
       </div>
 
-      <!-- STEP 2: Suggested Outfit & AI Customizer (Merged) -->
+      <!-- STEP 2: Own Item Registration -->
       <div class="step-card glass-panel" :class="{ 'is-active': activeStep === 2, 'disabled': !selectedSeason }">
         <div class="step-header" @click="selectedSeason && setActiveStep(2)">
           <div class="step-title-row">
             <span class="step-num">2</span>
+            <h2>手持ちアイテムのカラー判定・登録</h2>
+          </div>
+          <!-- Status Badge -->
+          <div class="step-status">
+            <span v-if="registeredOwnItem" class="owned-status-badge">
+              {{ getCategoryDisplayName(registeredOwnItem.category) }}: {{ registeredOwnItem.hex }}
+            </span>
+            <span v-else class="status-pending">登録前（スキップ可）</span>
+            <span class="chevron-icon" :class="{ rotated: activeStep === 2 }">▼</span>
+          </div>
+        </div>
+
+        <div class="step-body" v-show="activeStep === 2">
+          <OwnItemScanner 
+            :season="selectedSeason" 
+            @itemRegistered="onItemRegistered" 
+            @requestNextStep="proceedToStepThree" 
+          />
+
+          <!-- Navigation buttons -->
+          <div class="step-navigation">
+            <button @click="setActiveStep(1)" class="btn btn-secondary">戻る</button>
+            <button @click="setActiveStep(3)" class="btn btn-primary">
+              提案とAI相談へ進む (スキップ)
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STEP 3: Suggested Outfit & AI Customizer -->
+      <div class="step-card glass-panel" :class="{ 'is-active': activeStep === 3, 'disabled': !selectedSeason }">
+        <div class="step-header" @click="selectedSeason && setActiveStep(3)">
+          <div class="step-title-row">
+            <span class="step-num">3</span>
             <h2>似合う服の提案 ＆ AIスタイリング相談</h2>
           </div>
           <!-- Status Badge -->
@@ -106,19 +141,20 @@
               <div class="tiny-swatch" :style="{ backgroundColor: currentOutfit.bottoms.hex }" title="ボトムス"></div>
               <div v-if="currentOutfit.outer" class="tiny-swatch" :style="{ backgroundColor: currentOutfit.outer.hex }" title="アウター"></div>
             </div>
-            <span class="chevron-icon" :class="{ rotated: activeStep === 2 }">▼</span>
+            <span class="chevron-icon" :class="{ rotated: activeStep === 3 }">▼</span>
           </div>
           <div v-else class="step-status">
             <span class="status-locked">ロック中</span>
           </div>
         </div>
 
-        <div class="step-body" v-show="activeStep === 2">
+        <div class="step-body" v-show="activeStep === 3">
           <!-- Suggested Outfit layout -->
           <ColorSuggestion 
             ref="suggestionRef" 
             :season="selectedSeason" 
             :skinColor="userSkinColor"
+            :ownedItem="registeredOwnItem"
             @outfitChanged="onOutfitChanged"
           />
 
@@ -128,14 +164,15 @@
             <AiRefiner 
               :season="selectedSeason" 
               :currentOutfit="currentOutfit" 
+              :ownedItem="registeredOwnItem"
               @refineOutfit="onRefineOutfit" 
             />
           </div>
 
           <!-- Navigation buttons -->
           <div class="step-navigation">
-            <button @click="setActiveStep(1)" class="btn btn-secondary">
-              診断に戻る
+            <button @click="setActiveStep(2)" class="btn btn-secondary">
+              手持ちアイテムの編集に戻る
             </button>
           </div>
         </div>
@@ -153,10 +190,11 @@
 <script setup>
 import { ref } from 'vue';
 
-const activeStep = ref(1); // 1 = Diagnosis, 2 = Outfit & AI Refinement
+const activeStep = ref(1); // 1 = Diagnosis, 2 = Own Item Registration, 3 = Outfit & AI Refinement
 const selectedSeason = ref('');
 const userSkinColor = ref('');
 const currentOutfit = ref({ tops: null, bottoms: null, outer: null });
+const registeredOwnItem = ref(null);
 
 const suggestionRef = ref(null);
 
@@ -184,6 +222,32 @@ function selectSeasonManually(season) {
   }, 350);
 }
 
+function onItemRegistered(data) {
+  registeredOwnItem.value = {
+    category: data.category,
+    hex: data.hex
+  };
+
+  // Pre-seed matching outfit generated by color harmony in scanner
+  if (data.suggestedOutfit) {
+    setTimeout(() => {
+      if (suggestionRef.value) {
+        suggestionRef.value.updateOutfit({
+          tops: data.suggestedOutfit.tops,
+          bottoms: data.suggestedOutfit.bottoms,
+          outer: data.suggestedOutfit.outer
+        });
+      }
+    }, 100);
+  }
+}
+
+function proceedToStepThree() {
+  setTimeout(() => {
+    activeStep.value = 3;
+  }, 350);
+}
+
 function onOutfitChanged(outfitData) {
   currentOutfit.value = outfitData;
 }
@@ -202,6 +266,11 @@ function getSeasonDisplayName(seasonId) {
     winter: 'ウィンター (ブルベ冬)'
   };
   return names[seasonId] || '';
+}
+
+function getCategoryDisplayName(catId) {
+  const categories = { tops: 'トップス', bottoms: 'ボトムス', outer: 'アウター' };
+  return categories[catId] || '';
 }
 </script>
 
@@ -521,6 +590,15 @@ function getSeasonDisplayName(seasonId) {
   border-top: 1px solid rgba(0,0,0,0.05);
   font-size: 0.75rem;
   color: var(--text-muted);
+}
+
+.owned-status-badge {
+  font-size: 0.72rem;
+  font-weight: bold;
+  padding: 0.2rem 0.6rem;
+  border-radius: 50px;
+  background: var(--primary);
+  color: #fff;
 }
 
 @keyframes slideDown {

@@ -201,10 +201,14 @@
           v-if="includeOuter" 
           class="preview-item outer-wear"
           :style="{ borderLeftColor: currentOutfit.outer?.hex }"
+          :class="{ 'owned-item-glow': currentOutfit.outer?.isOwned }"
         >
           <div class="color-swatch-badge" :style="{ backgroundColor: currentOutfit.outer?.hex }"></div>
           <div class="item-info">
-            <span class="item-tag">アウター</span>
+            <span class="item-tag">
+              アウター
+              <span v-if="currentOutfit.outer?.isOwned" class="owned-badge-label">手持ち</span>
+            </span>
             <span class="item-name">{{ currentOutfit.outer?.name || '未選択' }}</span>
             <span class="item-hex">{{ currentOutfit.outer?.hex || '#---' }}</span>
           </div>
@@ -214,10 +218,14 @@
         <div 
           class="preview-item tops-wear"
           :style="{ borderLeftColor: currentOutfit.tops?.hex }"
+          :class="{ 'owned-item-glow': currentOutfit.tops?.isOwned }"
         >
           <div class="color-swatch-badge" :style="{ backgroundColor: currentOutfit.tops?.hex }"></div>
           <div class="item-info">
-            <span class="item-tag">トップス</span>
+            <span class="item-tag">
+              トップス
+              <span v-if="currentOutfit.tops?.isOwned" class="owned-badge-label">手持ち</span>
+            </span>
             <span class="item-name">{{ currentOutfit.tops?.name || '未選択' }}</span>
             <span class="item-hex">{{ currentOutfit.tops?.hex || '#---' }}</span>
           </div>
@@ -227,10 +235,14 @@
         <div 
           class="preview-item bottoms-wear"
           :style="{ borderLeftColor: currentOutfit.bottoms?.hex }"
+          :class="{ 'owned-item-glow': currentOutfit.bottoms?.isOwned }"
         >
           <div class="color-swatch-badge" :style="{ backgroundColor: currentOutfit.bottoms?.hex }"></div>
           <div class="item-info">
-            <span class="item-tag">ボトムス</span>
+            <span class="item-tag">
+              ボトムス
+              <span v-if="currentOutfit.bottoms?.isOwned" class="owned-badge-label">手持ち</span>
+            </span>
             <span class="item-name">{{ currentOutfit.bottoms?.name || '未選択' }}</span>
             <span class="item-hex">{{ currentOutfit.bottoms?.hex || '#---' }}</span>
           </div>
@@ -268,6 +280,10 @@ const props = defineProps({
   skinColor: {
     type: String,
     default: ''
+  },
+  ownedItem: {
+    type: Object,
+    default: null // { category: 'tops'|'bottoms'|'outer', hex: '#HEX' }
   }
 });
 
@@ -405,15 +421,27 @@ function generateRandomOutfit() {
   if (!props.season) return;
   const palette = PALETTES[props.season] || PALETTES.spring;
 
-  const randomTops = palette.tops[Math.floor(Math.random() * palette.tops.length)];
-  currentOutfit.tops = { ...randomTops };
+  if (props.ownedItem && props.ownedItem.category === 'tops') {
+    currentOutfit.tops = { name: '手持ちのトップス', hex: props.ownedItem.hex, isOwned: true };
+  } else {
+    const randomTops = palette.tops[Math.floor(Math.random() * palette.tops.length)];
+    currentOutfit.tops = { ...randomTops };
+  }
 
-  const randomBottoms = palette.bottoms[Math.floor(Math.random() * palette.bottoms.length)];
-  currentOutfit.bottoms = { ...randomBottoms };
+  if (props.ownedItem && props.ownedItem.category === 'bottoms') {
+    currentOutfit.bottoms = { name: '手持ちのボトムス', hex: props.ownedItem.hex, isOwned: true };
+  } else {
+    const randomBottoms = palette.bottoms[Math.floor(Math.random() * palette.bottoms.length)];
+    currentOutfit.bottoms = { ...randomBottoms };
+  }
 
   if (includeOuter.value) {
-    const randomOuter = palette.outer[Math.floor(Math.random() * palette.outer.length)];
-    currentOutfit.outer = { ...randomOuter };
+    if (props.ownedItem && props.ownedItem.category === 'outer') {
+      currentOutfit.outer = { name: '手持ちのアウター', hex: props.ownedItem.hex, isOwned: true };
+    } else {
+      const randomOuter = palette.outer[Math.floor(Math.random() * palette.outer.length)];
+      currentOutfit.outer = { ...randomOuter };
+    }
   } else {
     currentOutfit.outer = null;
   }
@@ -440,11 +468,33 @@ watch(() => props.season, (newSeason) => {
   }
 }, { immediate: true });
 
+watch(() => props.ownedItem, () => {
+  generateRandomOutfit();
+}, { deep: true });
+
 defineExpose({
   updateOutfit(newColors) {
-    if (newColors.tops) currentOutfit.tops = newColors.tops;
-    if (newColors.bottoms) currentOutfit.bottoms = newColors.bottoms;
-    if (newColors.outer && includeOuter.value) currentOutfit.outer = newColors.outer;
+    if (newColors.tops) {
+      if (props.ownedItem && props.ownedItem.category === 'tops') {
+        currentOutfit.tops = { name: '手持ちのトップス', hex: props.ownedItem.hex, isOwned: true };
+      } else {
+        currentOutfit.tops = newColors.tops;
+      }
+    }
+    if (newColors.bottoms) {
+      if (props.ownedItem && props.ownedItem.category === 'bottoms') {
+        currentOutfit.bottoms = { name: '手持ちのボトムス', hex: props.ownedItem.hex, isOwned: true };
+      } else {
+        currentOutfit.bottoms = newColors.bottoms;
+      }
+    }
+    if (newColors.outer && includeOuter.value) {
+      if (props.ownedItem && props.ownedItem.category === 'outer') {
+        currentOutfit.outer = { name: '手持ちのアウター', hex: props.ownedItem.hex, isOwned: true };
+      } else {
+        currentOutfit.outer = newColors.outer;
+      }
+    }
     notifyChange();
   }
 });
@@ -704,6 +754,24 @@ defineExpose({
   padding: 2rem;
   border: 2px dashed rgba(0,0,0,0.04);
   border-radius: 12px;
+}
+
+.preview-item.owned-item-glow {
+  border-left-width: 8px;
+  background: rgba(92, 98, 214, 0.03);
+}
+
+.owned-badge-label {
+  background: var(--primary);
+  color: white;
+  padding: 0.1rem 0.35rem;
+  border-radius: 4px;
+  font-size: 0.58rem;
+  font-weight: 800;
+  margin-left: 0.35rem;
+  display: inline-block;
+  vertical-align: middle;
+  line-height: 1;
 }
 
 @keyframes fadeIn {

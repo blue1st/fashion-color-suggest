@@ -113,6 +113,10 @@ const props = defineProps({
   currentOutfit: {
     type: Object,
     default: () => ({ tops: null, bottoms: null, outer: null })
+  },
+  ownedItem: {
+    type: Object,
+    default: null
   }
 });
 
@@ -384,6 +388,15 @@ function runRuleBasedRefiner(promptText) {
         newOuter.hex = hslToHex(outerHsl.h, outerHsl.s, outerHsl.l);
       }
     }
+    if (props.ownedItem) {
+      if (props.ownedItem.category === 'tops') {
+        newTops = { name: '手持ちのトップス', hex: props.ownedItem.hex };
+      } else if (props.ownedItem.category === 'bottoms') {
+        newBottoms = { name: '手持ちのボトムス', hex: props.ownedItem.hex };
+      } else if (props.ownedItem.category === 'outer' && newOuter) {
+        newOuter = { name: '手持ちのアウター', hex: props.ownedItem.hex };
+      }
+    }
 
     emit('refineOutfit', {
       tops: newTops,
@@ -408,12 +421,19 @@ function runLocalAiRefiner(promptText) {
   const bottomsDesc = `${props.currentOutfit.bottoms?.name} (${props.currentOutfit.bottoms?.hex})`;
   const outerDesc = props.currentOutfit.outer ? `${props.currentOutfit.outer?.name} (${props.currentOutfit.outer?.hex})` : 'None';
 
+  let ownedConstraint = '';
+  if (props.ownedItem) {
+    const categoryName = props.ownedItem.category === 'tops' ? 'Tops' : props.ownedItem.category === 'bottoms' ? 'Bottoms' : 'Outer';
+    ownedConstraint = `\nCRITICAL CONSTRAINT: The user's ${categoryName} is a fixed physical item they own with the color ${props.ownedItem.hex}. You MUST NOT change the color of the ${categoryName}. Keep the ${categoryName} exactly as {"hex": "${props.ownedItem.hex}"}. Only modify other items to match this fixed color.`;
+  }
+
   const systemPrompt = `You are a fashion color stylist AI.
 User personal color season: ${props.season}
 Current Outfit:
 - Tops: ${topsDesc}
 - Bottoms: ${bottomsDesc}
 - Outer: ${outerDesc}
+${ownedConstraint}
 
 User requests adjustment: "${promptText}"
 
@@ -463,10 +483,24 @@ function parseAiResponse(text) {
       throw new Error('出力されたJSONに必要な色定義が不足しています。');
     }
     
+    let finalTops = { name: parsed.tops.name, hex: parsed.tops.hex };
+    let finalBottoms = { name: parsed.bottoms.name, hex: parsed.bottoms.hex };
+    let finalOuter = parsed.outer ? { name: parsed.outer.name, hex: parsed.outer.hex } : null;
+
+    if (props.ownedItem) {
+      if (props.ownedItem.category === 'tops') {
+        finalTops = { name: '手持ちのトップス', hex: props.ownedItem.hex };
+      } else if (props.ownedItem.category === 'bottoms') {
+        finalBottoms = { name: '手持ちのボトムス', hex: props.ownedItem.hex };
+      } else if (props.ownedItem.category === 'outer' && finalOuter) {
+        finalOuter = { name: '手持ちのアウター', hex: props.ownedItem.hex };
+      }
+    }
+
     emit('refineOutfit', {
-      tops: { name: parsed.tops.name, hex: parsed.tops.hex },
-      bottoms: { name: parsed.bottoms.name, hex: parsed.bottoms.hex },
-      outer: parsed.outer ? { name: parsed.outer.name, hex: parsed.outer.hex } : null
+      tops: finalTops,
+      bottoms: finalBottoms,
+      outer: finalOuter
     });
     
     logConsole('success', `ローカルAIの提案内容に基づき、コーディネートを調整しました。`);
