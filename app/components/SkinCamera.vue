@@ -45,7 +45,7 @@
 
         <!-- Centered Target Guide -->
         <div v-if="!isCaptured && streamActive" class="face-guide">
-          <div class="guide-circle" :class="{ 'calibration-mode': !isWbCalibrated }"></div>
+          <div class="guide-circle" :class="{ 'calibration-mode': !isWbCalibrated }" :style="{ width: (scanSize * 1.3) + 'px', height: (scanSize * 1.3) + 'px' }"></div>
           <p class="guide-text">
             {{ isWbCalibrated ? '顔を円の中に映してください' : '白い紙を円の中に映してください' }}
           </p>
@@ -66,6 +66,26 @@
         <div v-if="detectedSeason && isWbCalibrated" class="season-badge" :class="detectedSeason.id">
           {{ detectedSeason.name }}
         </div>
+      </div>
+    </div>
+
+    <!-- Size controller -->
+    <div v-if="streamActive && !isCaptured" class="size-controller glass-panel">
+      <div class="slider-header">
+        <span class="slider-label">🎯 スキャン範囲（円）の大きさ:</span>
+        <span class="slider-value">{{ scanSize }}px</span>
+      </div>
+      <div class="slider-container">
+        <span class="slider-icon">🔎</span>
+        <input 
+          type="range" 
+          v-model.number="scanSize" 
+          min="40" 
+          max="240" 
+          step="10" 
+          class="size-slider"
+        />
+        <span class="slider-icon">🔍</span>
       </div>
     </div>
 
@@ -149,6 +169,7 @@ const videoRef = ref(null);
 const canvasRef = ref(null);
 const streamActive = ref(false);
 const isCaptured = ref(false);
+const scanSize = ref(100); // Dynamic sampling area size (40px - 240px)
 
 const sampledHex = ref('#D9B48F'); // Default beige
 const sampledHSL = ref({ h: 30, s: 0.45, l: 0.70 });
@@ -256,7 +277,7 @@ function calibrateWhiteBalance() {
   ctx.drawImage(video, 0, 0, width, height);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  const size = 100;
+  const size = scanSize.value; // Using dynamic scan size
   const sx = Math.floor((width - size) / 2);
   const sy = Math.floor((height - size) / 2);
 
@@ -305,7 +326,8 @@ function captureAndAnalyze() {
     emit('analyzed', {
       season: detectedSeason.value.id,
       hex: sampledHex.value,
-      hsl: sampledHSL.value
+      hsl: sampledHSL.value,
+      wbGains: wbGains.value
     });
   }
 }
@@ -329,7 +351,7 @@ function analyzeFrame(isFinalCapture) {
   ctx.drawImage(video, 0, 0, width, height);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-  const size = 100;
+  const size = scanSize.value; // Using dynamic scan size
   const sx = Math.floor((width - size) / 2);
   const sy = Math.floor((height - size) / 2);
 
@@ -822,8 +844,94 @@ onBeforeUnmount(() => {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Size controller styles */
+.size-controller {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.slider-value {
+  color: var(--primary);
+  font-family: var(--font-mono);
+  background: rgba(92, 98, 214, 0.08);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slider-icon {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  user-select: none;
+}
+
+.size-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.08);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: transform 0.1s ease;
+}
+
+.size-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.size-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: transform 0.1s ease;
+  cursor: pointer;
+}
+
+.size-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
+}
+
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
+  from { opacity: 0; transform: translateY(4px); }
   to { opacity: 1; transform: translateY(0); }
 }
 </style>

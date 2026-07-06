@@ -62,7 +62,7 @@
 
           <!-- Guide overlay -->
           <div v-if="!isCaptured && streamActive" class="item-guide">
-            <div class="guide-circle"></div>
+            <div class="guide-circle" :style="{ width: (scanSize * 1.16) + 'px', height: (scanSize * 1.16) + 'px' }"></div>
             <p class="guide-text">服の平らな部分を円の中に大きく映してください</p>
           </div>
         </div>
@@ -76,6 +76,26 @@
               <span class="hex-text">{{ selectedHex }}</span>
             </div>
           </div>
+        </div>
+      </div>
+
+      <!-- Size controller -->
+      <div v-if="streamActive && !isCaptured" class="size-controller glass-panel">
+        <div class="slider-header">
+          <span class="slider-label">🎯 スキャン範囲（円）の大きさ:</span>
+          <span class="slider-value">{{ scanSize }}px</span>
+        </div>
+        <div class="slider-container">
+          <span class="slider-icon">🔎</span>
+          <input 
+            type="range" 
+            v-model.number="scanSize" 
+            min="40" 
+            max="240" 
+            step="10" 
+            class="size-slider"
+          />
+          <span class="slider-icon">🔍</span>
         </div>
       </div>
 
@@ -199,6 +219,10 @@ const props = defineProps({
   season: {
     type: String,
     required: true
+  },
+  wbGains: {
+    type: Object,
+    default: () => ({ r: 1.0, g: 1.0, b: 1.0 })
   }
 });
 
@@ -220,6 +244,7 @@ const videoRef = ref(null);
 const canvasRef = ref(null);
 const streamActive = ref(false);
 const isCaptured = ref(false);
+const scanSize = ref(120); // Dynamic sampling area size (40px - 240px)
 
 let stream = null;
 let animationFrameId = null;
@@ -426,8 +451,8 @@ function analyzeFrame(isFinalCapture) {
   // Render video frame on canvas (mirrored if front camera, but for scanning environment standard is fine)
   ctx.drawImage(video, 0, 0, width, height);
 
-  // Define sampling window (120x120 pixels in the center)
-  const size = 120;
+  // Define sampling window (dynamic size in the center)
+  const size = scanSize.value;
   const sx = Math.floor((width - size) / 2);
   const sy = Math.floor((height - size) / 2);
 
@@ -441,11 +466,18 @@ function analyzeFrame(isFinalCapture) {
     bSum += pixels[i+2];
   }
   const pixelCount = pixels.length / 4;
-  const avgR = Math.round(rSum / pixelCount);
-  const avgG = Math.round(gSum / pixelCount);
-  const avgB = Math.round(bSum / pixelCount);
+  let avgR = rSum / pixelCount;
+  let avgG = gSum / pixelCount;
+  let avgB = bSum / pixelCount;
 
-  selectedHex.value = rgbToHex(avgR, avgG, avgB);
+  // Apply white balance gains from Step 1 if available
+  if (props.wbGains) {
+    avgR = Math.min(255, Math.max(0, avgR * props.wbGains.r));
+    avgG = Math.min(255, Math.max(0, avgG * props.wbGains.g));
+    avgB = Math.min(255, Math.max(0, avgB * props.wbGains.b));
+  }
+
+  selectedHex.value = rgbToHex(Math.round(avgR), Math.round(avgG), Math.round(avgB));
 
   if (!isFinalCapture) {
     // Draw visual helper circle over preview
@@ -1216,6 +1248,91 @@ onBeforeUnmount(() => {
 .apply-btn {
   width: 100%;
   box-shadow: 0 4px 12px rgba(92,98,214,0.2);
+}
+
+/* Size controller styles */
+.size-controller {
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.45);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: bold;
+  color: var(--text-color);
+}
+
+.slider-value {
+  color: var(--primary);
+  font-family: var(--font-mono);
+  background: rgba(92, 98, 214, 0.08);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.slider-icon {
+  font-size: 0.85rem;
+  opacity: 0.7;
+  user-select: none;
+}
+
+.size-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.08);
+  outline: none;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.size-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: transform 0.1s ease;
+}
+
+.size-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.15);
+}
+
+.size-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--primary);
+  border: 2px solid #fff;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  transition: transform 0.1s ease;
+  cursor: pointer;
+}
+
+.size-slider::-moz-range-thumb:hover {
+  transform: scale(1.15);
 }
 
 @keyframes fadeIn {

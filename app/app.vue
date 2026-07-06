@@ -112,6 +112,7 @@
         <div class="step-body" v-show="activeStep === 2">
           <OwnItemScanner 
             :season="selectedSeason" 
+            :wb-gains="wbGains"
             @itemRegistered="onItemRegistered" 
             @requestNextStep="proceedToStepThree" 
           />
@@ -199,6 +200,7 @@ const userSkinColor = ref('');
 const currentOutfit = ref({ tops: null, bottoms: null, outer: null });
 const registeredOwnItem = ref(null);
 const currentOccasion = ref('friendly');
+const wbGains = ref({ r: 1.0, g: 1.0, b: 1.0 });
 
 const suggestionRef = ref(null);
 
@@ -209,6 +211,9 @@ function setActiveStep(step) {
 function onSkinAnalyzed(data) {
   selectedSeason.value = data.season;
   userSkinColor.value = data.hex;
+  if (data.wbGains) {
+    wbGains.value = data.wbGains;
+  }
   
   // Proceed to step 2 automatically
   setTimeout(() => {
@@ -219,6 +224,7 @@ function onSkinAnalyzed(data) {
 function selectSeasonManually(season) {
   selectedSeason.value = season;
   userSkinColor.value = ''; // Reset custom sampled hex to default palette mode
+  wbGains.value = { r: 1.0, g: 1.0, b: 1.0 }; // Reset WB gains
   
   // Proceed to step 2 automatically
   setTimeout(() => {
