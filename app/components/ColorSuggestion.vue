@@ -1,8 +1,93 @@
 <template>
   <div class="color-suggestion-card">
     
+    <!-- 提案の仕組み説明モーダル -->
+    <dialog 
+      ref="infoDialog" 
+      class="info-dialog" 
+      closedby="any" 
+      @click="handleDialogClick"
+      aria-labelledby="dialog-title"
+    >
+      <div class="dialog-content">
+        <div class="dialog-header">
+          <h3 id="dialog-title" class="dialog-headline">
+            <span class="lightbulb-icon">💡</span> 提案の仕組みについて
+          </h3>
+          <button @click="closeInfoDialog" class="close-x-btn" aria-label="閉じる">&times;</button>
+        </div>
+        
+        <div class="dialog-body">
+          <section class="explain-step">
+            <div class="step-num-badge">1</div>
+            <div class="step-desc">
+              <h4>肌色に似合うパーソナルカラーの選定</h4>
+              <p>測定したあなたの肌のタイプ（スプリング・サマー・オータム・ウィンター）に合わせて、顔の血色を一番美しく見せる独自のシーズンカラーパレットから色を抽出しています。</p>
+            </div>
+          </section>
+
+          <section class="explain-step">
+            <div class="step-num-badge">2</div>
+            <div class="step-desc">
+              <h4>見せたい印象（TPO）に合わせた絞り込み</h4>
+              <p>選択した「見せたい印象」に基づき、色彩心理学の観点から自動スコアリングを行います。</p>
+              <div class="tpo-explain-grid">
+                <div class="tpo-explain-item">
+                  <span class="tpo-icon">💼</span>
+                  <div>
+                    <strong>ビジネス・知性</strong>
+                    <p>誠実さと信頼感を与える、知的なフォーマル配色（ネイビーや暗い色など）</p>
+                  </div>
+                </div>
+                <div class="tpo-explain-item">
+                  <span class="tpo-icon">😊</span>
+                  <div>
+                    <strong>親しみ・カジュアル</strong>
+                    <p>親しみやすさと安心感を与える、明るく柔らかな配色（暖色系など）</p>
+                  </div>
+                </div>
+                <div class="tpo-explain-item">
+                  <span class="tpo-icon">🥂</span>
+                  <div>
+                    <strong>洗練・デート</strong>
+                    <p>大人っぽさと洗練さを演出する、コントラストを効かせた配色（ダーク系など）</p>
+                  </div>
+                </div>
+                <div class="tpo-explain-item">
+                  <span class="tpo-icon">🏕️</span>
+                  <div>
+                    <strong>リラックス・自然体</strong>
+                    <p>安心感と自然体な魅力を引き出す、落ち着いた中間色（アースカラーなど）</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="explain-step">
+            <div class="step-num-badge">3</div>
+            <div class="step-desc">
+              <h4>手持ちアイテムとの調和</h4>
+              <p>登録された手持ち服（トップス、ボトムス、またはアウター）の色を最優先でコーディネートに組み込み、残りのスロットを調和するカラーパレットから補うことで、実用的なコーディネート例を作成します。</p>
+            </div>
+          </section>
+        </div>
+
+        <div class="dialog-footer">
+          <button @click="closeInfoDialog" class="btn btn-secondary close-footer-btn">閉じる</button>
+        </div>
+      </div>
+    </dialog>
+
     <!-- Outfit Configuration Toggles -->
     <div class="config-section">
+      <div class="config-header-row">
+        <span class="config-title">コーディネート設定</span>
+        <button @click="openInfoDialog" class="info-btn" aria-label="提案の仕組みを見る">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="info-svg"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          提案の仕組み
+        </button>
+      </div>
       <div class="mode-selector">
         <span class="mode-label">アイテム構成：</span>
         <div class="toggle-buttons">
@@ -287,13 +372,52 @@
     </div>
     
     <div v-else class="empty-state">
-      <p>ステップ 1 で肌色を測定すると、ここにコーディネートが提案されます。</p>
+      <div class="empty-content">
+        <p>ステップ 1 で肌色を測定すると、ここにコーディネートが提案されます。</p>
+        <button @click="openInfoDialog" class="info-btn empty-info-btn">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="info-svg"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+          提案の仕組みをみる
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup>
 import { ref, watch, reactive, computed } from 'vue';
+
+const infoDialog = ref(null);
+
+function openInfoDialog() {
+  if (infoDialog.value) {
+    infoDialog.value.showModal();
+  }
+}
+
+function closeInfoDialog() {
+  if (infoDialog.value) {
+    infoDialog.value.close();
+  }
+}
+
+function handleDialogClick(event) {
+  const dialog = infoDialog.value;
+  if (!dialog) return;
+  if ('closedBy' in HTMLDialogElement.prototype) return;
+
+  if (event.target === dialog) {
+    const rect = dialog.getBoundingClientRect();
+    const isInside = (
+      rect.top <= event.clientY &&
+      event.clientY <= rect.top + rect.height &&
+      rect.left <= event.clientX &&
+      event.clientX <= rect.left + rect.width
+    );
+    if (!isInside) {
+      dialog.close();
+    }
+  }
+}
 
 const props = defineProps({
   season: {
@@ -615,6 +739,242 @@ function hexToHsl(hex) {
 </script>
 
 <style scoped>
+/* Config Header */
+.config-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.config-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.info-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.info-btn:hover {
+  background: rgba(92, 98, 214, 0.08);
+}
+
+.info-svg {
+  display: inline-block;
+  vertical-align: middle;
+}
+
+.empty-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.empty-info-btn {
+  border: 1px solid rgba(92, 98, 214, 0.2);
+  padding: 0.4rem 0.8rem;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(4px);
+}
+
+.empty-info-btn:hover {
+  background: rgba(92, 98, 214, 0.05);
+  border-color: var(--primary);
+}
+
+/* Info Dialog */
+.info-dialog {
+  border: none;
+  border-radius: 16px;
+  padding: 0;
+  max-width: 500px;
+  width: 90%;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.15);
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
+  outline: none;
+  animation: modalFadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.info-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.dialog-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 85vh;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.dialog-headline {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-color);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.close-x-btn {
+  background: transparent;
+  border: none;
+  font-size: 1.5rem;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0.25rem 0.5rem;
+  border-radius: 50%;
+  transition: all 0.2s ease;
+}
+
+.close-x-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--text-color);
+}
+
+.dialog-body {
+  padding: 1.5rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.explain-step {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.step-num-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+  margin-top: 0.15rem;
+  box-shadow: 0 2px 6px rgba(92, 98, 214, 0.2);
+}
+
+.step-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  flex-grow: 1;
+}
+
+.step-desc h4 {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-color);
+}
+
+.step-desc p {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+
+.tpo-explain-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+@media (min-width: 480px) {
+  .tpo-explain-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.tpo-explain-item {
+  display: flex;
+  gap: 0.5rem;
+  background: rgba(0, 0, 0, 0.02);
+  padding: 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+.tpo-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.tpo-explain-item strong {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--text-color);
+  margin-bottom: 0.1rem;
+}
+
+.tpo-explain-item p {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  color: var(--text-muted);
+}
+
+.dialog-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
+  display: flex;
+  justify-content: flex-end;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.close-footer-btn {
+  min-width: 80px;
+}
+
+@keyframes modalFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .color-suggestion-card {
   display: flex;
   flex-direction: column;
