@@ -23,6 +23,23 @@
         </div>
       </div>
 
+      <!-- TPO Occasion Selector -->
+      <div class="mode-selector">
+        <span class="mode-label">見せたい印象 (TPO)：</span>
+        <div class="toggle-buttons scrollable-x">
+          <button 
+            v-for="occ in OCCASIONS"
+            :key="occ.id"
+            @click="emit('occasionChanged', occ.id)" 
+            class="toggle-btn" 
+            :class="{ active: occasion === occ.id }"
+            :title="occ.desc"
+          >
+            {{ occ.icon }} {{ occ.name }}
+          </button>
+        </div>
+      </div>
+
       <!-- Mannequin Style Customizer (Pill Selectors) -->
       <div class="style-customizer-row" v-if="season">
         <div class="style-control">
@@ -257,6 +274,12 @@
         <p class="advice-text">{{ getSeasonAdvice() }}</p>
       </div>
 
+      <!-- TPO Color Psychology Advice -->
+      <div class="coord-info tpo-advice-box">
+        <h4>💡 色彩心理アドバイス (TPO)</h4>
+        <p class="advice-text tpo-desc">{{ getOccasionDescription() }}</p>
+      </div>
+
       <button @click="generateRandomOutfit" class="btn btn-secondary randomize-btn">
         <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
         他の組み合わせにする（ランダム選択）
@@ -284,10 +307,14 @@ const props = defineProps({
   ownedItem: {
     type: Object,
     default: null // { category: 'tops'|'bottoms'|'outer', hex: '#HEX' }
+  },
+  occasion: {
+    type: String,
+    default: 'friendly'
   }
 });
 
-const emit = defineEmits(['outfitChanged']);
+const emit = defineEmits(['outfitChanged', 'occasionChanged']);
 
 // Outfit shape types
 const topsType = ref('short'); // 'short' | 'long'
@@ -417,6 +444,56 @@ function setOutfitMode(withOuter) {
   generateRandomOutfit();
 }
 
+const OCCASIONS = [
+  { id: 'business', name: 'ビジネス・知性', icon: '💼', desc: '誠実さと信頼感を与える、知的なフォーマル配色。プレゼンや面接、オフィススタイルに最適です。' },
+  { id: 'friendly', name: '親しみ・カジュアル', icon: '😊', desc: '明るく柔らかいトーンで、親しみやすさと安心感を与える配色。初対面やカジュアルな集まりに最適です。' },
+  { id: 'elegant', name: '洗練・デート', icon: '🥂', desc: 'コントラストを効かせたダーク系カラーで、大人っぽさと都会的な洗練さを演出。ディナーやデートにおすすめです。' },
+  { id: 'relaxed', name: 'リラックス・自然体', icon: '🏕️', desc: 'ベージュやオリーブなどのアースカラーで、安心感と自然体な魅力を引き出します。休日や旅行に最適です。' }
+];
+
+function selectBestOccasionColor(part, candidates) {
+  if (!candidates || candidates.length === 0) return { name: 'ホワイト', hex: '#FAF9F6' };
+  
+  const scored = candidates.map(item => {
+    const { h, s, l } = hexToHsl(item.hex);
+    let score = 0;
+
+    if (props.occasion === 'business') {
+      if (s < 0.16) score += 40; 
+      if (h >= 195 && h <= 245 && s > 0.15) score += 50; 
+      if (part === 'tops' && l > 0.85) score += 30; 
+      if (part === 'bottoms' && l < 0.4) score += 30; 
+      if (s > 0.6) score -= 50; 
+    } 
+    else if (props.occasion === 'friendly') {
+      if (l > 0.58) score += 35;
+      if (s > 0.35) score += 25;
+      const isWarm = (h >= 10 && h <= 80) || (h >= 340 && h <= 360);
+      if (isWarm) score += 30;
+      if (s < 0.12 && l < 0.3) score -= 45; 
+    } 
+    else if (props.occasion === 'elegant') {
+      if (l < 0.45) score += 40;
+      if (s > 0.45) score += 20;
+      if (h >= 250 && h <= 350) score += 25; 
+      if (s < 0.1 && l < 0.15) score += 40; 
+    } 
+    else if (props.occasion === 'relaxed') {
+      const isEarthColor = (h >= 20 && h <= 110);
+      if (isEarthColor) score += 50;
+      if (s > 0.1 && s < 0.55) score += 30; 
+      if (l > 0.35 && l < 0.78) score += 20;
+      if (s > 0.8) score -= 40; 
+    }
+
+    return { item, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  const topCandidates = scored.slice(0, Math.max(2, Math.floor(scored.length / 2))).map(x => x.item);
+  return { ...topCandidates[Math.floor(Math.random() * topCandidates.length)] };
+}
+
 function generateRandomOutfit() {
   if (!props.season) return;
   const palette = PALETTES[props.season] || PALETTES.spring;
@@ -424,23 +501,20 @@ function generateRandomOutfit() {
   if (props.ownedItem && props.ownedItem.category === 'tops') {
     currentOutfit.tops = { name: '手持ちのトップス', hex: props.ownedItem.hex, isOwned: true };
   } else {
-    const randomTops = palette.tops[Math.floor(Math.random() * palette.tops.length)];
-    currentOutfit.tops = { ...randomTops };
+    currentOutfit.tops = selectBestOccasionColor('tops', palette.tops);
   }
 
   if (props.ownedItem && props.ownedItem.category === 'bottoms') {
     currentOutfit.bottoms = { name: '手持ちのボトムス', hex: props.ownedItem.hex, isOwned: true };
   } else {
-    const randomBottoms = palette.bottoms[Math.floor(Math.random() * palette.bottoms.length)];
-    currentOutfit.bottoms = { ...randomBottoms };
+    currentOutfit.bottoms = selectBestOccasionColor('bottoms', palette.bottoms);
   }
 
   if (includeOuter.value) {
     if (props.ownedItem && props.ownedItem.category === 'outer') {
       currentOutfit.outer = { name: '手持ちのアウター', hex: props.ownedItem.hex, isOwned: true };
     } else {
-      const randomOuter = palette.outer[Math.floor(Math.random() * palette.outer.length)];
-      currentOutfit.outer = { ...randomOuter };
+      currentOutfit.outer = selectBestOccasionColor('outer', palette.outer);
     }
   } else {
     currentOutfit.outer = null;
@@ -451,6 +525,11 @@ function generateRandomOutfit() {
 
 function getSeasonAdvice() {
   return ADVICE[props.season] || 'アドバイスが見つかりませんでした。';
+}
+
+function getOccasionDescription() {
+  const current = OCCASIONS.find(o => o.id === props.occasion);
+  return current ? current.desc : '';
 }
 
 function notifyChange() {
@@ -471,6 +550,10 @@ watch(() => props.season, (newSeason) => {
 watch(() => props.ownedItem, () => {
   generateRandomOutfit();
 }, { deep: true });
+
+watch(() => props.occasion, () => {
+  generateRandomOutfit();
+});
 
 defineExpose({
   updateOutfit(newColors) {
@@ -772,6 +855,28 @@ defineExpose({
   display: inline-block;
   vertical-align: middle;
   line-height: 1;
+}
+
+.toggle-buttons.scrollable-x {
+  max-width: 100%;
+  overflow-x: auto;
+  white-space: nowrap;
+  -ms-overflow-style: none;
+  scrollbar-width: none; 
+}
+.toggle-buttons.scrollable-x::-webkit-scrollbar {
+  display: none;
+}
+
+.tpo-advice-box {
+  border-top: 1px dashed rgba(0, 0, 0, 0.05);
+  margin-top: 0.75rem;
+  padding-top: 0.75rem;
+}
+
+.tpo-desc {
+  color: var(--primary) !important;
+  font-weight: 600 !important;
 }
 
 @keyframes fadeIn {

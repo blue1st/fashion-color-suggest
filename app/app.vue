@@ -155,7 +155,9 @@
             :season="selectedSeason" 
             :skinColor="userSkinColor"
             :ownedItem="registeredOwnItem"
+            :occasion="currentOccasion"
             @outfitChanged="onOutfitChanged"
+            @occasionChanged="onOccasionChanged"
           />
 
           <!-- AI Refiner Consultation window -->
@@ -165,6 +167,7 @@
               :season="selectedSeason" 
               :currentOutfit="currentOutfit" 
               :ownedItem="registeredOwnItem"
+              :occasion="currentOccasion"
               @refineOutfit="onRefineOutfit" 
             />
           </div>
@@ -195,6 +198,7 @@ const selectedSeason = ref('');
 const userSkinColor = ref('');
 const currentOutfit = ref({ tops: null, bottoms: null, outer: null });
 const registeredOwnItem = ref(null);
+const currentOccasion = ref('friendly');
 
 const suggestionRef = ref(null);
 
@@ -246,6 +250,10 @@ function proceedToStepThree() {
   setTimeout(() => {
     activeStep.value = 3;
   }, 350);
+}
+
+function onOccasionChanged(occ) {
+  currentOccasion.value = occ;
 }
 
 function onOutfitChanged(outfitData) {

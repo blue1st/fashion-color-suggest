@@ -117,6 +117,10 @@ const props = defineProps({
   ownedItem: {
     type: Object,
     default: null
+  },
+  occasion: {
+    type: String,
+    default: 'friendly'
   }
 });
 
@@ -427,6 +431,17 @@ function runLocalAiRefiner(promptText) {
     ownedConstraint = `\nCRITICAL CONSTRAINT: The user's ${categoryName} is a fixed physical item they own with the color ${props.ownedItem.hex}. You MUST NOT change the color of the ${categoryName}. Keep the ${categoryName} exactly as {"hex": "${props.ownedItem.hex}"}. Only modify other items to match this fixed color.`;
   }
 
+  let occasionPrompt = '';
+  if (props.occasion === 'business') {
+    occasionPrompt = '\nUser Occasion Context: Business / Formal. Target impressions: Trustworthy, professional, clean. Favor dark navy, gray, off-white, and moderate contrast. Avoid neon or excessively bright colors.';
+  } else if (props.occasion === 'friendly') {
+    occasionPrompt = '\nUser Occasion Context: Friendly / Casual. Target impressions: Approachable, cheerful, happy. Favor bright, warm shades, medium saturation, soft pastels. Avoid extremely dark, gloomy colors.';
+  } else if (props.occasion === 'elegant') {
+    occasionPrompt = '\nUser Occasion Context: Elegant / Date. Target impressions: Sophisticated, classy, chic. Favor deep/dark shades (black, deep red, violet, royal blue), high value contrast, sleek clean combinations.';
+  } else if (props.occasion === 'relaxed') {
+    occasionPrompt = '\nUser Occasion Context: Relaxed / Natural. Target impressions: Calm, organic, natural. Favor earth tones (beiges, browns, olive greens, safaris), low-to-medium saturation. Avoid vivid neon and stark black/white contrasts.';
+  }
+
   const systemPrompt = `You are a fashion color stylist AI.
 User personal color season: ${props.season}
 Current Outfit:
@@ -434,6 +449,7 @@ Current Outfit:
 - Bottoms: ${bottomsDesc}
 - Outer: ${outerDesc}
 ${ownedConstraint}
+${occasionPrompt}
 
 User requests adjustment: "${promptText}"
 
