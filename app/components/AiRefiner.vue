@@ -5,12 +5,17 @@
       <div class="local-ai-status-container">
         <!-- Model Selector -->
         <div v-if="modelStatus === 'idle'" class="model-loader-prompt">
-          <p class="warning-alert">
+          <p class="info-alert" v-if="selectedModel === 'chrome-gemini-nano'">
+            <strong>✨ Chrome組み込み AI (Gemini Nano) が利用可能です</strong><br />
+            モデルファイルをダウンロードする必要がなく、PCのメモリ・バッテリー消費を抑えながら即時にスタイリング相談を開始できます。
+          </p>
+          <p class="warning-alert" v-else>
             <strong>⚠️ AIモデルのダウンロードについて（容量 約1.5GB）</strong><br />
             ブラウザ上で完全にプライベートにAI（Gemma 4）を実行するため、最初の1回のみモデルファイルをダウンロードします。高速なWi-Fi環境でのロードをおすすめします。（2回目以降はブラウザキャッシュから即座に起動します）
           </p>
           <div class="selector-row">
             <select v-model="selectedModel" class="model-select">
+              <option v-if="isBuiltInAiSupported" value="chrome-gemini-nano">Chrome組み込み AI (Gemini Nano) [推奨]</option>
               <option value="onnx-community/gemma-4-E2B-it-ONNX">Gemma 4 E2B Instruct（Lite・高速推奨）</option>
               <option value="onnx-community/gemma-4-E4B-it-ONNX">Gemma 4 E4B Instruct（Smart・高性能）</option>
               <option value="onnx-community/gemma-4-E2B-it-qat-mobile-ONNX">Gemma 4 E2B QAT（モバイル最適化）</option>
@@ -23,14 +28,16 @@
         <div v-else-if="modelStatus === 'loading'" class="loading-progress-block">
           <div class="spinner-row">
             <div class="double-bounce-spinner"></div>
-            <span>AIモデルをダウンロード中（ブラウザ内保存）...</span>
+            <span v-if="selectedModel === 'chrome-gemini-nano'">Chrome組み込み AI (Gemini Nano) を接続中...</span>
+            <span v-else>AIモデルをダウンロード中（ブラウザ内保存）...</span>
           </div>
-          <div class="progress-bar-container">
+          <div class="progress-bar-container" v-if="selectedModel !== 'chrome-gemini-nano' || downloadProgress > 0">
             <div class="progress-bar-fill" :style="{ width: `${downloadProgress}%` }"></div>
           </div>
-          <div class="progress-meta">
-            <span>{{ downloadProgress }}% ({{ formattedBytesLoaded }} / {{ formattedBytesTotal }})</span>
-            <span class="current-file">{{ currentFileName }}</span>
+          <div class="progress-meta" v-if="selectedModel !== 'chrome-gemini-nano' || downloadProgress > 0">
+            <span v-if="selectedModel === 'chrome-gemini-nano'">{{ downloadProgress }}%</span>
+            <span v-else>{{ downloadProgress }}% ({{ formattedBytesLoaded }} / {{ formattedBytesTotal }})</span>
+            <span class="current-file" v-if="selectedModel !== 'chrome-gemini-nano'">{{ currentFileName }}</span>
           </div>
         </div>
 
@@ -103,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, onBeforeUnmount, computed } from 'vue';
+import { ref, onBeforeUnmount, computed, onMounted } from 'vue';
 
 const props = defineProps({
   season: {
@@ -127,10 +134,46 @@ const props = defineProps({
 const emit = defineEmits(['refineOutfit']);
 
 const selectedModel = ref('onnx-community/gemma-4-E2B-it-ONNX');
+const isBuiltInAiSupported = ref(false);
+const builtInAiStatus = ref('unavailable');
 const modelStatus = ref('idle'); // 'idle' | 'loading' | 'ready' | 'error'
 const modelError = ref('');
 const downloadProgress = ref(0);
 const currentFileName = ref('');
+
+// built-in AI detection
+async function checkBuiltInAi() {
+  if (typeof window === 'undefined') return 'unavailable';
+
+  // 1. Modern spec (LanguageModel)
+  if (typeof LanguageModel !== 'undefined' && typeof LanguageModel.availability === 'function') {
+    try {
+      return await LanguageModel.availability();
+    } catch (e) {
+      console.warn('LanguageModel.availability error:', e);
+    }
+  }
+
+  // 2. Experimental/Older spec (window.ai)
+  if (typeof window.ai !== 'undefined' && typeof window.ai.languageModel !== 'undefined') {
+    try {
+      const capabilities = await window.ai.languageModel.capabilities();
+      return capabilities.available; // 'readily' | 'after-download' | 'no'
+    } catch (e) {
+      console.warn('window.ai capabilities error:', e);
+    }
+  }
+  return 'unavailable';
+}
+
+onMounted(async () => {
+  const availability = await checkBuiltInAi();
+  builtInAiStatus.value = availability;
+  if (availability !== 'unavailable' && availability !== 'no') {
+    isBuiltInAiSupported.value = true;
+    selectedModel.value = 'chrome-gemini-nano';
+  }
+});
 
 const userPrompt = ref('');
 const isGenerating = ref(false);
@@ -165,6 +208,44 @@ function initLocalAi() {
     modelStatus.value = 'loading';
     downloadProgress.value = 0;
     downloads.value = {};
+
+    if (selectedModel.value === 'chrome-gemini-nano') {
+      logConsole('system', 'Chrome組み込み AI (Gemini Nano) を接続中...');
+      // Use LanguageModel to start download/initialization
+      const initBuiltInSession = async () => {
+        try {
+          let testSession = null;
+          if (typeof LanguageModel !== 'undefined') {
+            testSession = await LanguageModel.create({
+              monitor(m) {
+                m.addEventListener('downloadprogress', (e) => {
+                  const pct = Math.round((e.loaded / e.total) * 100);
+                  downloadProgress.value = pct;
+                  logConsole('system', `Gemini Nanoモデルをダウンロード中: ${pct}%`);
+                });
+              }
+            });
+          } else if (window.ai && window.ai.languageModel) {
+            testSession = await window.ai.languageModel.create();
+          }
+
+          if (testSession) {
+            testSession.destroy();
+            modelStatus.value = 'ready';
+            logConsole('success', 'Gemini Nanoが正常に接続されました。会話可能です。');
+          } else {
+            throw new Error('組み込みAIセッションの作成に失敗しました。');
+          }
+        } catch (err) {
+          modelStatus.value = 'error';
+          modelError.value = err.message;
+          logConsole('error', `Gemini Nanoの起動に失敗しました: ${err.message}`);
+        }
+      };
+      initBuiltInSession();
+      return;
+    }
+
     logConsole('system', `AIモデル ${selectedModel.value} をスレッドに読み込んでいます...`);
 
     const runtimeConfig = useRuntimeConfig();
@@ -412,10 +493,18 @@ function runRuleBasedRefiner(promptText) {
 }
 
 function runLocalAiRefiner(promptText) {
-  if (!worker || modelStatus.value !== 'ready') {
-    logConsole('error', 'ローカルAIモデルが初期化されていません。モデルを先に起動してください。');
-    alert('ローカルモデルが準備できていません。モデルをロードしてください。');
-    return;
+  if (selectedModel.value === 'chrome-gemini-nano') {
+    if (modelStatus.value !== 'ready') {
+      logConsole('error', 'Gemini Nanoが起動されていません。モデルを起動してください。');
+      alert('Gemini Nanoが準備できていません。モデルを起動してください。');
+      return;
+    }
+  } else {
+    if (!worker || modelStatus.value !== 'ready') {
+      logConsole('error', 'ローカルAIモデルが初期化されていません。モデルを先に起動してください。');
+      alert('ローカルモデルが準備できていません。モデルをロードしてください。');
+      return;
+    }
   }
 
   isGenerating.value = true;
@@ -472,6 +561,11 @@ Respond ONLY with a valid raw JSON block (do not write markdown, do not write co
   ${props.currentOutfit.outer ? ',"outer": { "name": "Color Name", "hex": "#HEX" }' : ''}
 }`;
 
+  if (selectedModel.value === 'chrome-gemini-nano') {
+    runBuiltInAi(systemPrompt);
+    return;
+  }
+
   logConsole('system', `Gemma 4 にプロンプト命令を送信中...`);
   worker.postMessage({
     type: 'generate',
@@ -481,6 +575,73 @@ Respond ONLY with a valid raw JSON block (do not write markdown, do not write co
       temperature: 0.5
     }
   });
+}
+
+async function runBuiltInAi(systemPrompt) {
+  let session = null;
+  try {
+    logConsole('system', 'Chrome組み込みGemini Nanoでセッションを作成中...');
+    
+    if (typeof LanguageModel !== 'undefined') {
+      session = await LanguageModel.create();
+    } else if (window.ai && window.ai.languageModel) {
+      session = await window.ai.languageModel.create();
+    }
+
+    if (!session) {
+      throw new Error('Chrome組み込みAIのセッション作成に失敗しました。');
+    }
+
+    logConsole('ai', 'Gemini Nanoに接続しました。スタイリングの調整をリクエスト中...');
+
+    // Attempt using constraint schema if supported
+    const schema = {
+      type: 'object',
+      properties: {
+        tops: {
+          type: 'object',
+          properties: { name: { type: 'string' }, hex: { type: 'string' } },
+          required: ['name', 'hex']
+        },
+        bottoms: {
+          type: 'object',
+          properties: { name: { type: 'string' }, hex: { type: 'string' } },
+          required: ['name', 'hex']
+        },
+        ...(props.currentOutfit.outer ? {
+          outer: {
+            type: 'object',
+            properties: { name: { type: 'string' }, hex: { type: 'string' } },
+            required: ['name', 'hex']
+          }
+        } : {})
+      },
+      required: ['tops', 'bottoms', ...(props.currentOutfit.outer ? ['outer'] : [])]
+    };
+
+    let resultText = '';
+    try {
+      resultText = await session.prompt(systemPrompt, { responseConstraint: schema });
+    } catch (constraintError) {
+      console.warn('Schema constraint failed or unsupported, falling back to plain prompt:', constraintError);
+      resultText = await session.prompt(systemPrompt);
+    }
+
+    isGenerating.value = false;
+    logConsole('success', 'Gemini Nanoが提案を完了しました。');
+    parseAiResponse(resultText);
+
+  } catch (error) {
+    console.error('Gemini Nano error:', error);
+    modelStatus.value = 'error';
+    modelError.value = error.message;
+    logConsole('error', `Gemini Nanoエラー: ${error.message}。モデルステータスをエラーに更新しました。ルールベースの簡易調整にフォールバックします。`);
+    runRuleBasedRefiner(lastPromptText.value);
+  } finally {
+    if (session && typeof session.destroy === 'function') {
+      session.destroy();
+    }
+  }
 }
 
 function parseAiResponse(text) {
@@ -657,6 +818,17 @@ onBeforeUnmount(() => {
   color: #b45309; 
   background: #fef3c7;
   border-left: 2px solid #fbbf24;
+  padding: 0.5rem 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 0.75rem;
+}
+
+.info-alert {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: #1e3a8a; 
+  background: #eff6ff;
+  border-left: 2px solid #3b82f6;
   padding: 0.5rem 0.75rem;
   border-radius: 4px;
   margin-bottom: 0.75rem;
