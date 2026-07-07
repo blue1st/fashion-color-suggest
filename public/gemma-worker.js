@@ -34,7 +34,17 @@ self.onmessage = async (event) => {
       self.postMessage({ type: 'status', data: { status: 'loading', progress: 0, message: 'Initializing model...' } });
 
       // Load Gemma 4 model with WebGPU and quantized format
-      const dtype = modelName.includes('-qat-mobile') ? 'q2f16' : 'q4f16';
+      let dtype;
+      if (modelName.includes('-qat-mobile')) {
+        dtype = {
+          embed_tokens: 'q2f16',
+          audio_encoder: 'q2f16',
+          vision_encoder: 'fp16',
+          decoder_model_merged: 'q2f16'
+        };
+      } else {
+        dtype = 'q4f16';
+      }
       model = await Gemma4ForConditionalGeneration.from_pretrained(modelName, {
         dtype: dtype,
         device: device || 'webgpu',
