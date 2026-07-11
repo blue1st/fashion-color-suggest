@@ -1,126 +1,122 @@
 // public/gemma-worker.js
 
-import {
-  AutoProcessor,
-  Gemma4ForConditionalGeneration,
-  env
-} from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@4.2.0';
+import { Engine } from 'https://cdn.jsdelivr.net/npm/@litert-lm/core/+esm';
 
-// Config CDN paths for ONNX runtime files to ensure standard in-browser behavior
-env.allowLocalModels = false;
-
-let processor = null;
-let model = null;
+let engine = null;
+let chat = null;
 let currentModelName = '';
 
 self.onmessage = async (event) => {
   const { type, data } = event.data;
 
   if (type === 'init') {
-    const { modelName, device } = data;
+    const { modelName } = data;
     try {
-      if (model && processor && currentModelName === modelName) {
-        self.postMessage({ type: 'status', data: { status: 'ready', message: 'Model already loaded.' } });
+      if (engine && currentModelName === modelName) {
+        self.postMessage({ type: 'status', data: { status: 'ready', message: 'LiteRT engine already initialized.' } });
         return;
       }
 
-      self.postMessage({ type: 'status', data: { status: 'loading', progress: 0, message: 'Initializing processor...' } });
-
       currentModelName = modelName;
-
-      // Load processor
-      processor = await AutoProcessor.from_pretrained(modelName);
-
-      self.postMessage({ type: 'status', data: { status: 'loading', progress: 0, message: 'Initializing model...' } });
-
-      // Load Gemma 4 model with WebGPU and quantized format
-      let dtype;
-      if (modelName.includes('-qat-mobile')) {
-        dtype = {
-          embed_tokens: 'q2f16',
-          audio_encoder: 'q2f16',
-          vision_encoder: 'fp16',
-          decoder_model_merged: 'q2f16'
-        };
-      } else {
-        dtype = 'q4f16';
+      
+      // Determine model URL dynamically mapping litert-community repos
+      let modelUrl = modelName;
+      if (!modelName.startsWith('http')) {
+        const folder = modelName.split('/').pop();
+        const filename = folder.replace(/-litert-lm$/, '-web.litertlm');
+        modelUrl = `https://huggingface.co/litert-community/${folder}/resolve/main/${filename}`;
       }
-      model = await Gemma4ForConditionalGeneration.from_pretrained(modelName, {
-        dtype: dtype,
-        device: device || 'webgpu',
-        progress_callback: (progressData) => {
-          if (progressData.status === 'progress') {
-            self.postMessage({
-              type: 'progress',
-              data: {
-                file: progressData.file,
-                progress: progressData.progress,
-                loaded: progressData.loaded,
-                total: progressData.total
-              }
-            });
-          }
+
+      self.postMessage({ type: 'status', data: { status: 'loading', progress: 0, message: 'Downloading LiteRT model...' } });
+
+      // Start custom download tracking progress
+      const response = await fetch(modelUrl);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch LiteRT model: ${response.statusText}`);
+      }
+
+      const contentLengthHeader = response.headers.get('Content-Length');
+      const contentLength = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0;
+
+      const reader = response.body.getReader();
+      let receivedLength = 0;
+      const chunks = [];
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        chunks.push(value);
+        receivedLength += value.length;
+
+        if (contentLength > 0) {
+          const progress = Math.round((receivedLength / contentLength) * 100);
+          self.postMessage({
+            type: 'progress',
+            data: {
+              file: modelUrl,
+              progress: progress,
+              loaded: receivedLength,
+              total: contentLength
+            }
+          });
+        }
+      }
+
+      self.postMessage({ type: 'status', data: { status: 'loading', progress: 100, message: 'Compiling model with WebGPU...' } });
+
+      const modelBlob = new Blob(chunks);
+      const blobUrl = URL.createObjectURL(modelBlob);
+
+      // Initialize LiteRT engine
+      engine = await Engine.create({
+        model: blobUrl,
+        mainExecutorSettings: {
+          maxNumTokens: 2048,
         }
       });
 
-      self.postMessage({ type: 'status', data: { status: 'ready', message: `Model ${modelName} loaded successfully on ${device || 'webgpu'}.` } });
+      // Free up resource pointer URL
+      URL.revokeObjectURL(blobUrl);
+      chat = null;
+
+      self.postMessage({ type: 'status', data: { status: 'ready', message: 'LiteRT Engine initialized successfully.' } });
     } catch (error) {
-      console.error('Failed to initialize model in worker:', error);
+      console.error('Failed to initialize LiteRT model in worker:', error);
       self.postMessage({ type: 'status', data: { status: 'error', error: error.message } });
     }
   }
 
   if (type === 'generate') {
-    if (!model || !processor) {
-      self.postMessage({ type: 'status', data: { status: 'error', error: 'Model or processor not loaded.' } });
+    if (!engine) {
+      self.postMessage({ type: 'status', data: { status: 'error', error: 'LiteRT Engine not initialized.' } });
       return;
     }
 
-    const { prompt, maxTokens, temperature } = data;
-    let inputs = null;
-    let outputs = null;
+    const { prompt } = data;
 
     try {
       self.postMessage({ type: 'status', data: { status: 'generating' } });
 
-      // Format messages into chat template
-      const messages = [{ role: 'user', content: [{ type: 'text', text: prompt }] }];
-      const formattedPrompt = await processor.apply_chat_template(messages, {
-        add_generation_prompt: true,
-        tokenize: false
+      // Create a fresh conversation to avoid context leaks between styling requests
+      chat = await engine.createConversation({
+        preface: {
+          messages: []
+        }
       });
 
-      // Tokenize the formatted prompt
-      inputs = await processor(formattedPrompt);
+      let responseText = '';
+      const stream = chat.sendMessageStreaming(prompt);
+      for await (const chunk of stream) {
+        if (chunk.content && chunk.content[0] && chunk.content[0].text) {
+          responseText += chunk.content[0].text;
+        }
+      }
 
-      // Generate response tokens
-      outputs = await model.generate({
-        ...inputs,
-        max_new_tokens: maxTokens || 150,
-        do_sample: false, // Greedy search works best for JSON structure extraction
-      });
-
-      // Decode the generated tokens
-      const decoded = processor.batch_decode(
-        outputs.slice(null, [inputs.input_ids.dims.at(-1), null]),
-        { skip_special_tokens: true }
-      );
-
-      const responseText = decoded[0] || '';
       self.postMessage({ type: 'result', data: responseText });
     } catch (error) {
-      console.error('Generation error in worker:', error);
+      console.error('Generation error in LiteRT worker:', error);
       self.postMessage({ type: 'status', data: { status: 'error', error: error.message } });
-    } finally {
-      // Essential WebGPU resource cleanup
-      if (inputs) {
-        Object.values(inputs).forEach((tensor) => {
-          if (tensor && typeof tensor.dispose === 'function') tensor.dispose();
-        });
-      }
-      if (outputs && typeof outputs.dispose === 'function') {
-        outputs.dispose();
-      }
     }
   }
 };

@@ -16,9 +16,9 @@
           <div class="selector-row">
             <select v-model="selectedModel" class="model-select">
               <option v-if="isBuiltInAiSupported" value="chrome-gemini-nano">Chrome組み込み AI (Gemini Nano) [推奨]</option>
-              <option value="onnx-community/gemma-4-E2B-it-ONNX">Gemma 4 E2B Instruct（Lite・高速推奨）</option>
-              <option value="onnx-community/gemma-4-E4B-it-ONNX">Gemma 4 E4B Instruct（Smart・高性能）</option>
-              <option value="onnx-community/gemma-4-E2B-it-qat-mobile-ONNX">Gemma 4 E2B QAT（モバイル最適化）</option>
+              <option value="litert-community/gemma-4-E2B-it-litert-lm">Gemma 4 E2B Instruct（Lite・高速推奨）</option>
+              <option value="litert-community/gemma-4-E4B-it-litert-lm">Gemma 4 E4B Instruct（Smart・高性能）</option>
+              <option value="litert-community/gemma-4-E2B-it-qat-mobile-litert-lm">Gemma 4 E2B QAT（モバイル最適化）</option>
             </select>
             <button @click="initLocalAi" class="btn btn-primary btn-sm">モデルを起動</button>
           </div>
@@ -133,7 +133,7 @@ const props = defineProps({
 
 const emit = defineEmits(['refineOutfit']);
 
-const selectedModel = ref('onnx-community/gemma-4-E2B-it-ONNX');
+const selectedModel = ref('litert-community/gemma-4-E2B-it-litert-lm');
 const isBuiltInAiSupported = ref(false);
 const builtInAiStatus = ref('unavailable');
 const modelStatus = ref('idle'); // 'idle' | 'loading' | 'ready' | 'error'
