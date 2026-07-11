@@ -1,7 +1,28 @@
 // public/gemma-worker.js
 
-import { Engine } from 'https://cdn.jsdelivr.net/npm/@litert-lm/core/+esm';
+// Polyfill importScripts in Module Workers (where calling it throws a TypeError)
+if (typeof self.importScripts === 'function') {
+  const originalImportScripts = self.importScripts;
+  self.importScripts = function(...urls) {
+    for (const url of urls) {
+      try {
+        originalImportScripts(url);
+      } catch (e) {
+        console.warn('importScripts failed, falling back to sync XMLHttpRequest:', url, e);
+        const xhr = new XMLHttpRequest();
+        xhr.open('GET', url, false);
+        xhr.send(null);
+        if (xhr.status === 200 || xhr.status === 0) {
+          (0, eval)(xhr.responseText);
+        } else {
+          throw new Error(`Failed to import script: ${url}. Status: ${xhr.status}`);
+        }
+      }
+    }
+  };
+}
 
+let Engine = null;
 let engine = null;
 let chat = null;
 let currentModelName = '';
@@ -12,6 +33,11 @@ self.onmessage = async (event) => {
   if (type === 'init') {
     const { modelName } = data;
     try {
+      if (!Engine) {
+        const module = await import('https://cdn.jsdelivr.net/npm/@litert-lm/core/+esm');
+        Engine = module.Engine;
+      }
+
       if (engine && currentModelName === modelName) {
         self.postMessage({ type: 'status', data: { status: 'ready', message: 'LiteRT engine already initialized.' } });
         return;
